@@ -1,13 +1,18 @@
 package fi.dy.masa.malilib.render;
 
+import java.lang.Math;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import javax.annotation.Nullable;
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
-import org.joml.Matrix4f;
-import org.joml.Quaternionf;
+import net.minecraft.block.entity.ShulkerBoxBlockEntity;
+import net.minecraft.component.ComponentMap;
+import net.minecraft.component.DataComponentTypes;
+import net.minecraft.component.type.MapIdComponent;
+import net.minecraft.util.math.*;
+import org.joml.*;
 
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
@@ -39,11 +44,6 @@ import net.minecraft.screen.PlayerScreenHandler;
 import net.minecraft.util.DyeColor;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.collection.DefaultedList;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.RotationAxis;
-import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.math.random.LocalRandom;
 
 import fi.dy.masa.malilib.config.HudAlignment;
@@ -91,9 +91,10 @@ public class RenderUtils
         DiffuseLighting.disableGuiDepthLighting();
     }
 
-    public static void enableDiffuseLightingForLevel(MatrixStack matrixStack)
+    public static void enableDiffuseLightingForLevel()
     {
-        DiffuseLighting.enableForLevel(matrixStack.peek().getPositionMatrix());
+        // Uses Matrix4fStack method now
+        DiffuseLighting.enableForLevel();
     }
 
     public static void enableDiffuseLightingGui3D()
@@ -216,7 +217,7 @@ public class RenderUtils
     {
         MinecraftClient mc = mc();
 
-        if (textLines.isEmpty() == false && GuiUtils.getCurrentScreen() != null)
+        if (!textLines.isEmpty() && GuiUtils.getCurrentScreen() != null)
         {
             RenderSystem.enableDepthTest();
             TextRenderer font = mc.textRenderer;
@@ -253,6 +254,8 @@ public class RenderUtils
                 textStartX = Math.max(2, maxWidth - maxLineLength - 8);
             }
 
+            // TODO -- DrawContext still uses MatrixStack,
+            //  so I am sure Mojang will change this in the future
             MatrixStack matrixStack = drawContext.getMatrices();
             matrixStack.push();
             matrixStack.translate(0, 0, 300);
@@ -358,7 +361,7 @@ public class RenderUtils
 
     public static void renderText(int x, int y, int color, List<String> lines, DrawContext drawContext)
     {
-        if (lines.isEmpty() == false)
+        if (!lines.isEmpty())
         {
             TextRenderer textRenderer = mc().textRenderer;
 
@@ -386,7 +389,8 @@ public class RenderUtils
             return 0;
         }
 
-        MatrixStack globalStack = RenderSystem.getModelViewStack();
+        // RenderSystem's 'modelViewStack' was changed to a Matrix4fStack method
+        Matrix4fStack global4fStack = RenderSystem.getModelViewStack();
         boolean scaled = scale != 1.0;
 
         if (scaled)
@@ -397,8 +401,8 @@ public class RenderUtils
                 yOff = (int) (yOff * scale);
             }
 
-            globalStack.push();
-            globalStack.scale((float) scale, (float) scale, 1.0f);
+            global4fStack.pushMatrix();
+            global4fStack.scale((float) scale, (float) scale, 1.0f);
             RenderSystem.applyModelViewMatrix();
         }
 
@@ -438,7 +442,7 @@ public class RenderUtils
 
         if (scaled)
         {
-            globalStack.pop();
+            global4fStack.popMatrix();
             RenderSystem.applyModelViewMatrix();
         }
 
@@ -457,14 +461,14 @@ public class RenderUtils
 
             Collection<StatusEffectInstance> effects = player.getStatusEffects();
 
-            if (effects.isEmpty() == false)
+            if (!effects.isEmpty())
             {
                 int y1 = 0;
                 int y2 = 0;
 
                 for (StatusEffectInstance effectInstance : effects)
                 {
-                    StatusEffect effect = effectInstance.getEffectType();
+                    StatusEffect effect = effectInstance.getEffectType().value();
 
                     if (effectInstance.shouldShowParticles() && effectInstance.shouldShowIcon())
                     {
@@ -533,11 +537,6 @@ public class RenderUtils
     /**
      * Assumes a BufferBuilder in GL_LINES mode has been initialized.
      * The cameraPos value will be subtracted from the absolute coordinate values of the passed in BlockPos.
-     * @param pos
-     * @param cameraPos
-     * @param color
-     * @param expand
-     * @param buffer
      */
     public static void drawBlockBoundingBoxOutlinesBatchedLines(BlockPos pos, Vec3d cameraPos, Color4f color, double expand, BufferBuilder buffer)
     {
@@ -565,12 +564,6 @@ public class RenderUtils
     /**
      * Draws a box with outlines around the given corner positions.
      * Takes in buffers initialized for GL_QUADS and GL_LINES modes.
-     * @param posMin
-     * @param posMax
-     * @param colorLines
-     * @param colorSides
-     * @param bufferQuads
-     * @param bufferLines
      */
     public static void drawBoxWithEdgesBatched(BlockPos posMin, BlockPos posMax, Color4f colorLines, Color4f colorSides, BufferBuilder bufferQuads, BufferBuilder bufferLines)
     {
@@ -581,13 +574,6 @@ public class RenderUtils
      * Draws a box with outlines around the given corner positions.
      * Takes in buffers initialized for GL_QUADS and GL_LINES modes.
      * The cameraPos value will be subtracted from the absolute coordinate values of the passed in block positions.
-     * @param posMin
-     * @param posMax
-     * @param cameraPos
-     * @param colorLines
-     * @param colorSides
-     * @param bufferQuads
-     * @param bufferLines
      */
     public static void drawBoxWithEdgesBatched(BlockPos posMin, BlockPos posMax, Vec3d cameraPos, Color4f colorLines, Color4f colorSides, BufferBuilder bufferQuads, BufferBuilder bufferLines)
     {
@@ -598,8 +584,8 @@ public class RenderUtils
         final double y2 = posMax.getY() + 1 - cameraPos.y;
         final double z2 = posMax.getZ() + 1 - cameraPos.z;
 
-        fi.dy.masa.malilib.render.RenderUtils.drawBoxAllSidesBatchedQuads(x1, y1, z1, x2, y2, z2, colorSides, bufferQuads);
-        fi.dy.masa.malilib.render.RenderUtils.drawBoxAllEdgesBatchedLines(x1, y1, z1, x2, y2, z2, colorLines, bufferLines);
+        RenderUtils.drawBoxAllSidesBatchedQuads(x1, y1, z1, x2, y2, z2, colorSides, bufferQuads);
+        RenderUtils.drawBoxAllEdgesBatchedLines(x1, y1, z1, x2, y2, z2, colorLines, bufferLines);
     }
 
     /**
@@ -720,11 +706,6 @@ public class RenderUtils
     /**
      * Renders a text plate/billboard, similar to the player name plate.<br>
      * The plate will always face towards the viewer.
-     * @param text
-     * @param x
-     * @param y
-     * @param z
-     * @param scale
      */
     public static void drawTextPlate(List<String> text, double x, double y, double z, float scale)
     {
@@ -745,14 +726,19 @@ public class RenderUtils
         double cz = cameraPos.z;
         TextRenderer textRenderer = mc().textRenderer;
 
-        MatrixStack globalStack = RenderSystem.getModelViewStack();
-        globalStack.push();
-        globalStack.translate(x - cx, y - cy, z - cz);
+        // RenderSystem's 'modelViewStack' was changed to a Matrix4fStack method
+        Matrix4fStack global4fStack = RenderSystem.getModelViewStack();
+        global4fStack.pushMatrix();
 
-        Quaternionf rot = new Quaternionf().rotationYXZ(-yaw * (float) (Math.PI / 180.0), pitch * (float) (Math.PI / 180.0), 0.0F);
-        globalStack.multiply(rot);
+        global4fStack.translate((float) (x - cx), (float) (y - cy), (float) (z - cz));
 
-        globalStack.scale(-scale, -scale, scale);
+        // TODO Matrix4f handles the rotations directly, but watch for invalid rotation values.
+        //  Wrap it with matrix4fRotateFix() if rotation errors are found.
+        //Quaternionf rot = new Quaternionf().rotationYXZ(-yaw * (float) (Math.PI / 180.0), pitch * (float) (Math.PI / 180.0), 0.0F);
+
+        global4fStack.rotateYXZ((-yaw) * ((float) (Math.PI / 180.0)), pitch * ((float) (Math.PI / 180.0)), 0.0F);
+
+        global4fStack.scale((-scale), (-scale), scale);
         RenderSystem.applyModelViewMatrix();
         RenderSystem.disableCull();
 
@@ -791,7 +777,7 @@ public class RenderUtils
         int textY = 0;
 
         // translate the text a bit infront of the background
-        if (disableDepth == false)
+        if (!disableDepth)
         {
             RenderSystem.enablePolygonOffset();
             RenderSystem.polygonOffset(-0.6f, -1.2f);
@@ -819,7 +805,7 @@ public class RenderUtils
             textY += textRenderer.fontHeight;
         }
 
-        if (disableDepth == false)
+        if (!disableDepth)
         {
             RenderSystem.polygonOffset(0f, 0f);
             RenderSystem.disablePolygonOffset();
@@ -828,11 +814,11 @@ public class RenderUtils
         color(1f, 1f, 1f, 1f);
         RenderSystem.enableCull();
         RenderSystem.disableBlend();
-        globalStack.pop();
+        global4fStack.popMatrix();
     }
 
     public static void renderBlockTargetingOverlay(Entity entity, BlockPos pos, Direction side, Vec3d hitVec,
-            Color4f color, MatrixStack matrixStack, MinecraftClient mc)
+            Color4f color, Matrix4f matrix4f, MinecraftClient mc)
     {
         Direction playerFacing = entity.getHorizontalFacing();
         HitPart part = PositionUtils.getHitPart(side, playerFacing, pos, hitVec);
@@ -842,9 +828,10 @@ public class RenderUtils
         double y = pos.getY() + 0.5d - cameraPos.y;
         double z = pos.getZ() + 0.5d - cameraPos.z;
 
-        MatrixStack globalStack = RenderSystem.getModelViewStack();
-        globalStack.push();
-        blockTargetingOverlayTranslations(x, y, z, side, playerFacing, globalStack);
+        // RenderSystem's 'modelViewStack' was changed to a Matrix4fStack method
+        Matrix4fStack global4fStack = RenderSystem.getModelViewStack();
+        global4fStack.pushMatrix();
+        blockTargetingOverlayTranslations(x, y, z, side, playerFacing, global4fStack);
         RenderSystem.applyModelViewMatrix();
 
         RenderSystem.setShader(GameRenderer::getPositionColorProgram);
@@ -934,12 +921,12 @@ public class RenderUtils
         buffer.vertex(x + 0.25, y + 0.25, z).color(c, c, c, c).next();
         tessellator.draw();
 
-        globalStack.pop();
+        global4fStack.popMatrix();
         RenderSystem.applyModelViewMatrix();
     }
 
     public static void renderBlockTargetingOverlaySimple(Entity entity, BlockPos pos, Direction side,
-            Color4f color, MatrixStack matrixStack, MinecraftClient mc)
+            Color4f color, Matrix4f matrix4f, MinecraftClient mc)
     {
         Direction playerFacing = entity.getHorizontalFacing();
         Vec3d cameraPos = mc.gameRenderer.getCamera().getPos();
@@ -948,10 +935,11 @@ public class RenderUtils
         double y = pos.getY() + 0.5d - cameraPos.y;
         double z = pos.getZ() + 0.5d - cameraPos.z;
 
-        MatrixStack globalStack = RenderSystem.getModelViewStack();
-        globalStack.push();
+        // RenderSystem's 'modelViewStack' was changed to a Matrix4fStack method
+        Matrix4fStack global4fStack = RenderSystem.getModelViewStack();
+        global4fStack.pushMatrix();
 
-        blockTargetingOverlayTranslations(x, y, z, side, playerFacing, globalStack);
+        blockTargetingOverlayTranslations(x, y, z, side, playerFacing, global4fStack);
         RenderSystem.applyModelViewMatrix();
         RenderSystem.setShader(GameRenderer::getPositionColorProgram);
 
@@ -987,39 +975,48 @@ public class RenderUtils
 
         tessellator.draw();
 
-        globalStack.pop();
+        global4fStack.popMatrix();
         RenderSystem.applyModelViewMatrix();
     }
 
+    /**
+     * Matrix4f rotation adds direct values without adding these numbers.
+     * --> fix with matrix4fRotateFix()
+     * *****************************************************
+     * (VIA RotationAxis.class)
+     * default Quaternionf rotationDegrees(float deg) {
+     *         return this.rotation(deg * 0.017453292F);
+     * *****************************************************
+     */
     private static void blockTargetingOverlayTranslations(double x, double y, double z,
-            Direction side, Direction playerFacing, MatrixStack matrixStack)
+            Direction side, Direction playerFacing, Matrix4fStack matrix4fStack)
     {
-        matrixStack.translate(x, y, z);
+        matrix4fStack.translate((float) x, (float) y, (float) z);
 
         switch (side)
         {
             case DOWN:
-                matrixStack.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(180f - playerFacing.asRotation()));
-                matrixStack.multiply(RotationAxis.POSITIVE_X.rotationDegrees(90f));
+                matrix4fStack.rotateY(matrix4fRotateFix(180f - playerFacing.asRotation()));
+                matrix4fStack.rotateX(matrix4fRotateFix(90f));
                 break;
             case UP:
-                matrixStack.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(180f - playerFacing.asRotation()));
-                matrixStack.multiply(RotationAxis.POSITIVE_X.rotationDegrees(-90f));
+                matrix4fStack.rotateY(matrix4fRotateFix(180f - playerFacing.asRotation()));
+                matrix4fStack.rotateX(matrix4fRotateFix(-90f));
                 break;
             case NORTH:
-                matrixStack.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(180f));
+                matrix4fStack.rotateY(matrix4fRotateFix(180f));
                 break;
             case SOUTH:
                 break;
             case WEST:
-                matrixStack.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(-90f));
+                matrix4fStack.rotateY(matrix4fRotateFix(-90f));
                 break;
             case EAST:
-                matrixStack.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(90f));
+                matrix4fStack.rotateY(matrix4fRotateFix(90f));
                 break;
         }
 
-        matrixStack.translate(-x, -y, -z + 0.510);
+        matrix4fStack.translate((float) (-x), (float) (-y), (float) ((-z) + 0.510));
     }
 
     public static void renderMapPreview(ItemStack stack, int x, int y, int dimensions)
@@ -1029,7 +1026,7 @@ public class RenderUtils
 
     public static void renderMapPreview(ItemStack stack, int x, int y, int dimensions, boolean requireShift)
     {
-        if (stack.getItem() instanceof FilledMapItem && (requireShift == false || GuiBase.isShiftDown()))
+        if (stack.getItem() instanceof FilledMapItem && (!requireShift || GuiBase.isShiftDown()))
         {
             color(1f, 1f, 1f, 1f);
 
@@ -1039,8 +1036,9 @@ public class RenderUtils
             int x2 = x1 + dimensions;
             int z = 300;
 
-            Integer mapId = FilledMapItem.getMapId(stack);
-            MapState mapState = FilledMapItem.getMapState(mapId, mc().world);
+            MapState mapState = FilledMapItem.getMapState(stack, mc().world);
+            ComponentMap data = stack.getComponents();
+            MapIdComponent mapId = data.get(DataComponentTypes.MAP_ID);
 
             Identifier bgTexture = mapState == null ? TEXTURE_MAP_BACKGROUND : TEXTURE_MAP_BACKGROUND_CHECKERBOARD;
             bindTexture(bgTexture);
@@ -1065,6 +1063,9 @@ public class RenderUtils
                 z = 310;
                 VertexConsumerProvider.Immediate consumer = VertexConsumerProvider.immediate(buffer);
                 double scale = (double) (dimensions - 16) / 128.0D;
+
+                // TODO -- MapRenderer still uses MatrixStack,
+                //  which I'm sure Mojang will change in the future
                 MatrixStack matrixStack = new MatrixStack();
                 matrixStack.push();
                 matrixStack.translate(x1, y1, z);
@@ -1076,13 +1077,71 @@ public class RenderUtils
         }
     }
 
+    public static void renderBundlePreview(ItemStack stack, int baseX, int baseY, Color4f bg, DrawContext drawContext)
+    {
+        if (stack.getComponents() != ComponentMap.EMPTY)
+        {
+            int occupancy = InventoryUtils.bundleCountItems(stack);
+            if (occupancy < 1)
+            {
+                // Occupants is the total number of items up to 64, but items.size() is the number of slots.
+                return;
+            }
+
+            DefaultedList<ItemStack> items = InventoryUtils.getBundleItems(stack);
+
+            if (items.isEmpty())
+            {
+                return;
+            }
+            if (items.size() > 27)
+            {
+                // Disable this if the Slots in the Bundle are too much for the screen to logically display
+                //  The Double-Chest (54) Type also doesn't look very good either,
+                //  but I would assume most use cases are less than 27 different items.
+                items.clear();
+                return;
+            }
+
+            InventoryOverlay.InventoryRenderType type = InventoryOverlay.getInventoryType(stack);
+            InventoryOverlay.InventoryProperties props = InventoryOverlay.getInventoryPropsTemp(type, items.size());
+
+            int screenWidth = GuiUtils.getScaledWindowWidth();
+            int screenHeight = GuiUtils.getScaledWindowHeight();
+            int height = props.height + 18;
+            int x = MathHelper.clamp(baseX + 8     , 0, screenWidth - props.width);
+            int y = MathHelper.clamp(baseY - height, 0, screenHeight - height);
+
+            color(bg.r, bg.g, bg.b, 1f);
+
+            disableDiffuseLighting();
+
+            // RenderSystem's 'modelViewStack' was changed to a Matrix4fStack method
+            Matrix4fStack matrix4fStack = RenderSystem.getModelViewStack();
+            matrix4fStack.pushMatrix();
+            matrix4fStack.translate(0, 0, 500);
+            RenderSystem.applyModelViewMatrix();
+
+            InventoryOverlay.renderInventoryBackground(type, x, y, props.slotsPerRow, items.size(), mc());
+
+            enableDiffuseLightingGui3D();
+
+            Inventory inv = InventoryUtils.getAsInventory(items);
+            InventoryOverlay.renderInventoryStacks(type, inv, x + props.slotOffsetX, y + props.slotOffsetY, props.slotsPerRow, 0, items.size(), mc(), drawContext);
+
+            matrix4fStack.popMatrix();
+            RenderSystem.applyModelViewMatrix();
+
+            items.clear();
+        }
+    }
     public static void renderShulkerBoxPreview(ItemStack stack, int baseX, int baseY, boolean useBgColors, DrawContext drawContext)
     {
-        if (stack.hasNbt())
+        if (stack.getComponents() != ComponentMap.EMPTY)
         {
-            DefaultedList<ItemStack> items = InventoryUtils.getStoredItems(stack, -1);
+            DefaultedList<ItemStack> items = InventoryUtils.getStoredItems(stack, ShulkerBoxBlockEntity.INVENTORY_SIZE);
 
-            if (items.size() == 0)
+            if (items.isEmpty())
             {
                 return;
             }
@@ -1106,27 +1165,29 @@ public class RenderUtils
             }
 
             disableDiffuseLighting();
-            MatrixStack matrixStack = RenderSystem.getModelViewStack();
-            matrixStack.push();
-            matrixStack.translate(0, 0, 500);
+
+            // RenderSystem's 'modelViewStack' was changed to a Matrix4fStack method
+            Matrix4fStack matrix4fStack = RenderSystem.getModelViewStack();
+            matrix4fStack.pushMatrix();
+            matrix4fStack.translate(0, 0, 500);
             RenderSystem.applyModelViewMatrix();
 
             InventoryOverlay.renderInventoryBackground(type, x, y, props.slotsPerRow, items.size(), mc());
 
             enableDiffuseLightingGui3D();
 
-            Inventory inv = fi.dy.masa.malilib.util.InventoryUtils.getAsInventory(items);
-            InventoryOverlay.renderInventoryStacks(type, inv, x + props.slotOffsetX, y + props.slotOffsetY, props.slotsPerRow, 0, -1, mc(), drawContext);
+            Inventory inv = InventoryUtils.getAsInventory(items);
+            InventoryOverlay.renderInventoryStacks(type, inv, x + props.slotOffsetX, y + props.slotOffsetY, props.slotsPerRow, 0, ShulkerBoxBlockEntity.INVENTORY_SIZE, mc(), drawContext);
 
-            matrixStack.pop();
+            matrix4fStack.popMatrix();
             RenderSystem.applyModelViewMatrix();
+
+            items.clear();
         }
     }
 
     /**
      * Calls RenderUtils.color() with the dye color of the provided shulker box block's color
-     * @param block
-     * @param useBgColors
      */
     public static void setShulkerboxBackgroundTintColor(@Nullable ShulkerBoxBlock block, boolean useBgColors)
     {
@@ -1150,8 +1211,9 @@ public class RenderUtils
             return;
         }
 
-        MatrixStack matrixStack = RenderSystem.getModelViewStack();
-        matrixStack.push();
+        // RenderSystem's 'modelViewStack' was changed to a Matrix4fStack method
+        Matrix4fStack matrix4fStack = RenderSystem.getModelViewStack();
+        matrix4fStack.pushMatrix();
         bindTexture(PlayerScreenHandler.BLOCK_ATLAS_TEXTURE);
         mc().getTextureManager().getTexture(PlayerScreenHandler.BLOCK_ATLAS_TEXTURE).setFilter(false, false);
 
@@ -1161,13 +1223,16 @@ public class RenderUtils
 
         setupGuiTransform(x, y, model.hasDepth(), zLevel);
         //model.getItemCameraTransforms().applyTransform(ItemCameraTransforms.TransformType.GUI);
-        matrixStack.multiply(RotationAxis.POSITIVE_X.rotationDegrees(30));
-        matrixStack.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(225));
-        matrixStack.scale(0.625f, 0.625f, 0.625f);
+
+        // TODO -- Verify we get the correct rotations for this method using the matrix4fRotateFix(),
+        //  but what uses this function to test?
+        matrix4fStack.rotateX(matrix4fRotateFix(30));
+        matrix4fStack.rotateY(matrix4fRotateFix(225));
+
+        matrix4fStack.scale(0.625f, 0.625f, 0.625f);
 
         renderModel(model, state);
-
-        matrixStack.pop();
+        matrix4fStack.popMatrix();
     }
 
     public static void setupGuiTransform(int xPosition, int yPosition, boolean isGui3d, float zLevel)
@@ -1175,20 +1240,24 @@ public class RenderUtils
         setupGuiTransform(RenderSystem.getModelViewStack(), xPosition, yPosition, zLevel);
     }
 
-    public static void setupGuiTransform(MatrixStack matrixStack, int xPosition, int yPosition, float zLevel)
+    public static void setupGuiTransform(Matrix4fStack matrix4fStack, int xPosition, int yPosition, float zLevel)
     {
-        matrixStack.translate(xPosition + 8.0, yPosition + 8.0, zLevel + 100.0);
-        matrixStack.scale(16, -16, 16);
+        // TODO --> RenderSystem's 'modelViewStack' was changed to a Matrix4fStack method,
+        //  verify this method works, but what is using it?
+        matrix4fStack.translate((float) (xPosition + 8.0), (float) (yPosition + 8.0), (float) (zLevel + 100.0));
+        matrix4fStack.scale((float) 16, (float) -16, (float) 16);
     }
 
     private static void renderModel(BakedModel model, BlockState state)
     {
-        MatrixStack matrixStack = RenderSystem.getModelViewStack();
-        matrixStack.push();
-        matrixStack.translate(-0.5, -0.5, -0.5);
+        // RenderSystem's 'modelViewStack' was changed to a Matrix4fStack method
+        Matrix4fStack matrix4fStack = RenderSystem.getModelViewStack();
+        matrix4fStack.pushMatrix();
+
+        matrix4fStack.translate((float) -0.5, (float) -0.5, (float) -0.5);
         int color = 0xFFFFFFFF;
 
-        if (model.isBuiltin() == false)
+        if (!model.isBuiltin())
         {
             RenderSystem.setShader(GameRenderer::getRenderTypeSolidProgram);
             RenderSystem.applyModelViewMatrix();
@@ -1207,7 +1276,7 @@ public class RenderUtils
             tessellator.draw();
         }
 
-        matrixStack.pop();
+        matrix4fStack.popMatrix();
     }
 
     private static void renderQuads(BufferBuilder renderer, List<BakedQuad> quads, BlockState state, int color)
@@ -1251,6 +1320,7 @@ public class RenderUtils
         */
     }
 
+    @Nullable
     private static MinecraftClient mc()
     {
         return MinecraftClient.getInstance();
@@ -1292,4 +1362,9 @@ public class RenderUtils
         RenderSystem.glLightModel(GL11.GL_LIGHT_MODEL_AMBIENT, RenderHelper.setColorBuffer(ambientLightStrength, ambientLightStrength, ambientLightStrength, 1.0F));
     }
     */
+
+    /**
+     * Only required for translating the values to their RotationAxis.POSITIVE_?.rotationDegrees() equivalence
+     */
+    public static float matrix4fRotateFix(float ang) { return (ang * 0.017453292F); }
 }

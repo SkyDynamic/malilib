@@ -22,7 +22,7 @@ public abstract class MixinMouse
 
     @Inject(method = "onCursorPos",
             at = @At(value = "FIELD", target = "Lnet/minecraft/client/Mouse;hasResolutionChanged:Z", ordinal = 0))
-    private void hookOnMouseMove(long handle, double xpos, double ypos, CallbackInfo ci)
+    private void malilib$hookOnMouseMove(long handle, double xpos, double ypos, CallbackInfo ci)
     {
         Window window = this.client.getWindow();
         int mouseX = (int) (((Mouse) (Object) this).getX() * (double) window.getScaledWidth() / (double) window.getWidth());
@@ -33,7 +33,7 @@ public abstract class MixinMouse
 
     @Inject(method = "onMouseScroll", cancellable = true,
             at = @At(value = "FIELD", target = "Lnet/minecraft/client/MinecraftClient;currentScreen:Lnet/minecraft/client/gui/screen/Screen;", ordinal = 0))
-    private void hookOnMouseScroll(long handle, double xOffset, double yOffset, CallbackInfo ci)
+    private void malilib$hookOnMouseScroll(long handle, double xOffset, double yOffset, CallbackInfo ci)
     {
         Window window = this.client.getWindow();
         int mouseX = (int) (((Mouse) (Object) this).getX() * (double) window.getScaledWidth() / (double) window.getWidth());
@@ -49,7 +49,7 @@ public abstract class MixinMouse
 
     @Inject(method = "onMouseButton", cancellable = true,
             at = @At(value = "FIELD", target = "Lnet/minecraft/client/MinecraftClient;IS_SYSTEM_MAC:Z", ordinal = 0))
-    private void hookOnMouseClick(long handle, final int button, final int action, int mods, CallbackInfo ci)
+    private void malilib$hookOnMouseClick(long handle, final int button, final int action, int mods, CallbackInfo ci)
     {
         Window window = this.client.getWindow();
         int mouseX = (int) (((Mouse) (Object) this).getX() * (double) window.getScaledWidth() / (double) window.getWidth());

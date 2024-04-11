@@ -16,14 +16,14 @@ public abstract class MixinKeyboard implements IF3KeyStateSetter
     private boolean switchF3State;
 
     @Override
-    public void setF3KeyState(boolean value)
+    public void malilib$setF3KeyState(boolean value)
     {
         this.switchF3State = value;
     }
 
     @Inject(method = "onKey", cancellable = true,
             at = @At(value = "FIELD", target = "Lnet/minecraft/client/Keyboard;debugCrashStartTime:J", ordinal = 0))
-    private void onKeyboardInput(long windowPointer, int key, int scanCode, int action, int modifiers, CallbackInfo ci)
+    private void malilib$onKeyboardInput(long windowPointer, int key, int scanCode, int action, int modifiers, CallbackInfo ci)
     {
         if (((InputEventHandler) InputEventHandler.getInputManager()).onKeyInput(key, scanCode, modifiers, action))
         {

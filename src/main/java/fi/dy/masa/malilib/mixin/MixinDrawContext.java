@@ -15,7 +15,7 @@ import fi.dy.masa.malilib.event.RenderEventHandler;
 public abstract class MixinDrawContext
 {
     @Inject(method = "drawItemTooltip", at = @At(value = "RETURN"))
-    private void onRenderTooltip(TextRenderer textRenderer, ItemStack stack, int x, int y, CallbackInfo ci)
+    private void malilib$onRenderTooltip(TextRenderer textRenderer, ItemStack stack, int x, int y, CallbackInfo ci)
     {
         ((RenderEventHandler) RenderEventHandler.getInstance()).onRenderTooltipLast((DrawContext) (Object) this, stack, x, y);
     }

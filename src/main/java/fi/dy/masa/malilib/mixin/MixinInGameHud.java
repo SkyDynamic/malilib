@@ -19,7 +19,7 @@ public abstract class MixinInGameHud
     @Shadow @Final private MinecraftClient client;
 
     @Inject(method = "render", at = @At("RETURN"))
-    private void onGameOverlayPost(DrawContext drawContext, float partialTicks, CallbackInfo ci)
+    private void malilib$onGameOverlayPost(DrawContext drawContext, float partialTicks, CallbackInfo ci)
     {
         ((RenderEventHandler) RenderEventHandler.getInstance()).onRenderGameOverlayPost(drawContext, this.client, partialTicks);
     }

@@ -164,7 +164,7 @@ public abstract class GuiListBase<TYPE, WIDGET extends WidgetListEntryBase<TYPE>
     {
         super.resize(mc, width, height);
 
-        if (this.getListWidget() != null)
+        if (mc != null && this.getListWidget() != null)
         {
             this.getListWidget().resize(mc, width, height);
         }
